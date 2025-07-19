@@ -265,24 +265,50 @@ export default function Camera() {
 
       // Create or update user profile
       console.log('Updating user profile...')
-      await blink.db.users.upsert({
-        id: user.id,
-        email: user.email || '',
-        display_name: user.displayName || user.email?.split('@')[0] || 'User',
-        subscription_status: isPremium ? 'active' : 'free'
-      })
+      try {
+        // Try to get existing user first
+        const existingUsers = await blink.db.users.list({
+          where: { id: user.id },
+          limit: 1
+        })
+        
+        if (existingUsers.length === 0) {
+          // Create new user
+          await blink.db.users.create({
+            id: user.id,
+            email: user.email || '',
+            display_name: user.displayName || user.email?.split('@')[0] || 'User',
+            subscription_status: isPremium ? 'active' : 'free'
+          })
+          console.log('New user created')
+        } else {
+          console.log('User already exists, skipping creation')
+        }
+      } catch (userError) {
+        console.error('Error with user profile:', userError)
+        // Continue anyway - user creation is not critical for selfie processing
+      }
 
       // Save selfie to database
       console.log('Saving selfie to database...')
+      console.log('Selfie data to save:', {
+        id: `selfie_${Date.now()}`,
+        user_id: user.id,
+        image_url: publicUrl,
+        score: score,
+        rank: rank,
+        city: city
+      })
+      
       const selfie = await blink.db.selfies.create({
         id: `selfie_${Date.now()}`,
         user_id: user.id,
         image_url: publicUrl,
         score: score,
-        rank_position: rank,
+        rank: rank,
         city: city
       })
-      console.log('Selfie saved:', selfie.id)
+      console.log('Selfie saved successfully:', selfie.id)
 
       // Update leaderboard
       console.log('Updating leaderboard...')
@@ -350,7 +376,7 @@ export default function Camera() {
         user_id: user.id,
         image_url: publicUrl, // Store video URL in image_url field
         score: score,
-        rank_position: rank,
+        rank: rank,
         city: city
       })
 
