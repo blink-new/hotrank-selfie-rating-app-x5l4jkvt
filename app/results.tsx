@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, Image, Dimensions, Share } from 'react-native'
+import { View, Text, TouchableOpacity, Image, Dimensions, Share, Alert } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router, useLocalSearchParams } from 'expo-router'
+import { Video, ResizeMode } from 'expo-av'
+import * as Sharing from 'expo-sharing'
+import * as FileSystem from 'expo-file-system'
 import Animated, { FadeInDown, FadeInUp, FadeInLeft } from 'react-native-reanimated'
 import { 
   Trophy, 
@@ -11,7 +14,10 @@ import {
   ArrowLeft,
   Star,
   TrendingUp,
-  Users
+  Users,
+  Instagram,
+  Download,
+  Video as VideoIcon
 } from 'lucide-react-native'
 import blink from '@/lib/blink'
 
@@ -22,21 +28,42 @@ export default function Results() {
   const [user, setUser] = useState(null)
   const [isPremium, setIsPremium] = useState(false)
   const [showBlur, setShowBlur] = useState(true)
+  const [isSharing, setIsSharing] = useState(false)
 
   const score = parseInt(params.score as string) || 0
   const rank = parseInt(params.rank as string) || 0
   const imageUrl = params.imageUrl as string
+  const videoUrl = params.videoUrl as string
+  const type = params.type as string || 'photo'
+  const city = params.city as string || 'Your City'
 
   useEffect(() => {
     const unsubscribe = blink.auth.onAuthStateChanged((state) => {
       setUser(state.user)
-      // For demo purposes, assume user is not premium
-      setIsPremium(false)
-      setShowBlur(!false) // Show blur for free users
+      checkPremiumStatus(state.user)
     })
     
     return unsubscribe
   }, [])
+
+  const checkPremiumStatus = async (user: any) => {
+    if (!user) return
+    
+    try {
+      const userRecord = await blink.db.users.list({
+        where: { id: user.id },
+        limit: 1
+      })
+      
+      if (userRecord.length > 0) {
+        const isActive = userRecord[0].subscriptionStatus === 'active'
+        setIsPremium(isActive)
+        setShowBlur(!isActive)
+      }
+    } catch (error) {
+      console.error('Error checking premium status:', error)
+    }
+  }
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return '#00FF88'
@@ -65,12 +92,65 @@ export default function Results() {
 
   const handleShare = async () => {
     try {
+      setIsSharing(true)
+      
+      const message = `I just got Pinked with a score of ${isPremium ? score : '••'}/100 on HotPink! 🔥 ${type === 'live_pic' ? 'Live Pic' : 'Selfie'} rating by AI. Check out this app!`
+      
       await Share.share({
-        message: `I just got Pinked with a score of ${isPremium ? score : '••'}/100 on HotPink! 🔥 Check out this AI selfie rating app!`,
+        message,
         url: 'https://hotpink.app' // Replace with actual app URL
       })
     } catch (error) {
       console.error('Error sharing:', error)
+    } finally {
+      setIsSharing(false)
+    }
+  }
+
+  const handleInstagramShare = async () => {
+    try {
+      setIsSharing(true)
+      
+      // Create a shareable image with score overlay
+      const shareableContent = await createShareableContent()
+      
+      if (shareableContent) {
+        await Sharing.shareAsync(shareableContent, {
+          mimeType: type === 'live_pic' ? 'video/mp4' : 'image/jpeg',
+          dialogTitle: 'Share to Instagram'
+        })
+      }
+    } catch (error) {
+      console.error('Error sharing to Instagram:', error)
+      Alert.alert('Error', 'Failed to share to Instagram. Please try again.')
+    } finally {
+      setIsSharing(false)
+    }
+  }
+
+  const createShareableContent = async (): Promise<string | null> => {
+    try {
+      // For now, just return the original content
+      // In a real app, you'd overlay the score and branding
+      const sourceUrl = type === 'live_pic' ? videoUrl : imageUrl
+      
+      if (!sourceUrl) return null
+      
+      // Download the file to local storage
+      const fileExtension = type === 'live_pic' ? 'mp4' : 'jpg'
+      const fileName = `hotpink_${Date.now()}.${fileExtension}`
+      const localUri = `${FileSystem.documentDirectory}${fileName}`
+      
+      const downloadResult = await FileSystem.downloadAsync(sourceUrl, localUri)
+      
+      if (downloadResult.status === 200) {
+        return downloadResult.uri
+      }
+      
+      return null
+    } catch (error) {
+      console.error('Error creating shareable content:', error)
+      return null
     }
   }
 
@@ -88,6 +168,17 @@ export default function Results() {
 
   const handleBackToDashboard = () => {
     router.push('/dashboard')
+  }
+
+  const handleDownload = async () => {
+    try {
+      const shareableContent = await createShareableContent()
+      if (shareableContent) {
+        Alert.alert('Success', `${type === 'live_pic' ? 'Video' : 'Photo'} saved to your device!`)
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to download. Please try again.')
+    }
   }
 
   return (
@@ -120,30 +211,50 @@ export default function Results() {
             <ArrowLeft size={20} color="white" />
           </TouchableOpacity>
 
-          <Text style={{
-            fontSize: 20,
-            fontWeight: 'bold',
-            color: 'white'
-          }}>
-            Your Results
-          </Text>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{
+              fontSize: 20,
+              fontWeight: 'bold',
+              color: 'white'
+            }}>
+              Your Results
+            </Text>
+            {type === 'live_pic' && (
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginTop: 4
+              }}>
+                <VideoIcon size={12} color="rgba(255,255,255,0.8)" />
+                <Text style={{
+                  fontSize: 12,
+                  color: 'rgba(255,255,255,0.8)',
+                  marginLeft: 4
+                }}>
+                  Live Pic
+                </Text>
+              </View>
+            )}
+          </View>
 
           <TouchableOpacity
             onPress={handleShare}
+            disabled={isSharing}
             style={{
               width: 40,
               height: 40,
               borderRadius: 20,
               backgroundColor: 'rgba(255,255,255,0.2)',
               justifyContent: 'center',
-              alignItems: 'center'
+              alignItems: 'center',
+              opacity: isSharing ? 0.5 : 1
             }}
           >
             <Share2 size={20} color="white" />
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Photo */}
+        {/* Media Display */}
         <Animated.View 
           entering={FadeInDown.duration(600).delay(100)}
           style={{
@@ -162,12 +273,51 @@ export default function Results() {
             shadowRadius: 16,
             elevation: 16
           }}>
-            <Image
-              source={{ uri: imageUrl }}
-              style={{ width: '100%', height: '100%' }}
-              resizeMode="cover"
-            />
+            {type === 'live_pic' && videoUrl ? (
+              <Video
+                source={{ uri: videoUrl }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode={ResizeMode.COVER}
+                shouldPlay
+                isLooping
+                isMuted
+              />
+            ) : (
+              <Image
+                source={{ uri: imageUrl }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+            )}
           </View>
+          
+          {/* Live Pic Badge */}
+          {type === 'live_pic' && (
+            <Animated.View 
+              entering={FadeInUp.duration(400).delay(300)}
+              style={{
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                backgroundColor: '#FF0000',
+                borderRadius: 12,
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                flexDirection: 'row',
+                alignItems: 'center'
+              }}
+            >
+              <VideoIcon size={12} color="white" />
+              <Text style={{
+                fontSize: 10,
+                fontWeight: 'bold',
+                color: 'white',
+                marginLeft: 4
+              }}>
+                LIVE
+              </Text>
+            </Animated.View>
+          )}
         </Animated.View>
 
         {/* Score Card */}
@@ -225,6 +375,17 @@ export default function Results() {
           }}>
             {isPremium ? getScoreMessage(score) : 'Unlock to see your score!'}
           </Text>
+          
+          {type === 'live_pic' && isPremium && (
+            <Text style={{
+              fontSize: 14,
+              color: 'rgba(255,255,255,0.8)',
+              textAlign: 'center',
+              marginTop: 8
+            }}>
+              🎥 Live Pic Bonus Applied!
+            </Text>
+          )}
         </Animated.View>
 
         {/* Ranking Card */}
@@ -251,7 +412,7 @@ export default function Results() {
                 color: 'white',
                 marginLeft: 8
               }}>
-                City Ranking
+                {city} Ranking
               </Text>
             </View>
             <Text style={{
@@ -308,6 +469,62 @@ export default function Results() {
               </Text>
             </TouchableOpacity>
           )}
+
+          {/* Social Share Buttons */}
+          <View style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            gap: 8,
+            marginBottom: 16
+          }}>
+            <TouchableOpacity
+              onPress={handleInstagramShare}
+              disabled={isSharing}
+              style={{
+                flex: 1,
+                backgroundColor: '#E4405F',
+                borderRadius: 16,
+                paddingVertical: 12,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center',
+                opacity: isSharing ? 0.5 : 1
+              }}
+            >
+              <Instagram size={20} color="white" />
+              <Text style={{
+                fontSize: 14,
+                fontWeight: 'bold',
+                color: 'white',
+                marginLeft: 8
+              }}>
+                Instagram
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleDownload}
+              style={{
+                flex: 1,
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                borderRadius: 16,
+                paddingVertical: 12,
+                alignItems: 'center',
+                flexDirection: 'row',
+                justifyContent: 'center'
+              }}
+            >
+              <Download size={20} color="white" />
+              <Text style={{
+                fontSize: 14,
+                fontWeight: 'bold',
+                color: 'white',
+                marginLeft: 8
+              }}>
+                Save
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           <View style={{
             flexDirection: 'row',

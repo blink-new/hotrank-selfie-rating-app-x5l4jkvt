@@ -1,465 +1,640 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { blink } from '../lib/blink';
+import React, { useState, useEffect } from 'react'
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Image, Alert } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
+import { router } from 'expo-router'
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated'
+import { 
+  Trophy, 
+  Medal, 
+  Crown, 
+  ArrowLeft, 
+  RefreshCw, 
+  MapPin,
+  Star,
+  Lock,
+  Camera,
+  Users,
+  Share2,
+  Instagram
+} from 'lucide-react-native'
+import blink from '@/lib/blink'
+import { InstagramShare } from '@/utils/instagram'
 
-interface LeaderboardUser {
-  id: string;
-  display_name: string;
-  current_score: number;
-  rank_position: number;
-  city: string;
-  is_current_user?: boolean;
+interface LeaderboardEntry {
+  id: string
+  userId: string
+  displayName: string
+  score: number
+  rankPosition: number
+  city: string
+  imageUrl?: string
+  videoUrl?: string
+  type: 'photo' | 'live_pic'
+  createdAt: string
+  isCurrentUser?: boolean
 }
 
 export default function LeaderboardScreen() {
-  const [user, setUser] = useState<any>(null);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
-  const [userRank, setUserRank] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [city, setCity] = useState('New York');
+  const [user, setUser] = useState<any>(null)
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [userRank, setUserRank] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [isPremium, setIsPremium] = useState(false)
+  const [city, setCity] = useState('Your City')
 
   useEffect(() => {
-    loadData();
-  }, []);
+    const unsubscribe = blink.auth.onAuthStateChanged((state) => {
+      setUser(state.user)
+      if (state.user) {
+        loadData(state.user)
+      }
+    })
+    
+    return unsubscribe
+  }, [])
 
-  const loadData = async () => {
+  const loadData = async (currentUser?: any) => {
     try {
-      const currentUser = await blink.auth.me();
-      setUser(currentUser);
+      const userToUse = currentUser || user
+      if (!userToUse) return
 
-      // Mock user rank data
-      setUserRank({
-        rank: 234,
-        score: 87,
-        city: 'New York'
-      });
+      // Check premium status
+      const userRecord = await blink.db.users.list({
+        where: { id: userToUse.id },
+        limit: 1
+      })
+      
+      if (userRecord.length > 0) {
+        const isActive = userRecord[0].subscriptionStatus === 'active'
+        setIsPremium(isActive)
+        setCity(userRecord[0].city || 'Your City')
+      }
 
-      // Mock leaderboard data
-      const mockLeaderboard: LeaderboardUser[] = [
-        { id: '1', display_name: 'Emma S.', current_score: 98, rank_position: 1, city: 'New York' },
-        { id: '2', display_name: 'Alex M.', current_score: 96, rank_position: 2, city: 'New York' },
-        { id: '3', display_name: 'Sarah L.', current_score: 94, rank_position: 3, city: 'New York' },
-        { id: '4', display_name: 'Mike R.', current_score: 92, rank_position: 4, city: 'New York' },
-        { id: '5', display_name: 'Jessica T.', current_score: 90, rank_position: 5, city: 'New York' },
-      ];
+      // Load leaderboard data
+      const leaderboardData = await blink.db.leaderboard.list({
+        where: { city: city },
+        orderBy: { rankPosition: 'asc' },
+        limit: 50
+      })
 
-      setLeaderboard(mockLeaderboard);
+      // Get user details for each leaderboard entry
+      const enrichedLeaderboard: LeaderboardEntry[] = []
+      
+      for (const entry of leaderboardData) {
+        try {
+          // Get user info
+          const userInfo = await blink.db.users.list({
+            where: { id: entry.userId },
+            limit: 1
+          })
+          
+          // Get selfie info
+          const selfieInfo = await blink.db.selfies.list({
+            where: { id: entry.selfieId },
+            limit: 1
+          })
+
+          if (userInfo.length > 0 && selfieInfo.length > 0) {
+            const selfie = selfieInfo[0]
+            enrichedLeaderboard.push({
+              id: entry.id,
+              userId: entry.userId,
+              displayName: userInfo[0].displayName || userInfo[0].email?.split('@')[0] || 'Anonymous',
+              score: entry.score,
+              rankPosition: entry.rankPosition,
+              city: entry.city,
+              imageUrl: selfie.imageUrl,
+              videoUrl: selfie.videoUrl,
+              type: selfie.type as 'photo' | 'live_pic',
+              createdAt: entry.createdAt,
+              isCurrentUser: entry.userId === userToUse.id
+            })
+          }
+        } catch (error) {
+          console.error('Error enriching leaderboard entry:', error)
+        }
+      }
+
+      setLeaderboard(enrichedLeaderboard)
+
+      // Find current user's rank
+      const currentUserEntry = enrichedLeaderboard.find(entry => entry.isCurrentUser)
+      if (currentUserEntry) {
+        setUserRank({
+          rank: currentUserEntry.rankPosition,
+          score: currentUserEntry.score,
+          city: currentUserEntry.city
+        })
+      } else {
+        // If user not in top 50, get their rank from database
+        const userSelfies = await blink.db.selfies.list({
+          where: { userId: userToUse.id },
+          orderBy: { createdAt: 'desc' },
+          limit: 1
+        })
+        
+        if (userSelfies.length > 0) {
+          const latestSelfie = userSelfies[0]
+          setUserRank({
+            rank: latestSelfie.rankPosition,
+            score: latestSelfie.score,
+            city: latestSelfie.city
+          })
+        }
+      }
+
     } catch (error) {
-      console.error('Error loading leaderboard:', error);
+      console.error('Error loading leaderboard:', error)
+      Alert.alert('Error', 'Failed to load leaderboard. Please try again.')
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setLoading(false)
+      setRefreshing(false)
     }
-  };
+  }
 
   const onRefresh = () => {
-    setRefreshing(true);
-    loadData();
-  };
+    setRefreshing(true)
+    loadData()
+  }
 
-  const isPremium = user?.subscription_status === 'active';
+  const handleShareLeaderboard = async (entry: LeaderboardEntry) => {
+    try {
+      const shareData = {
+        imageUrl: entry.imageUrl,
+        videoUrl: entry.videoUrl,
+        score: entry.score,
+        rank: entry.rankPosition,
+        city: entry.city,
+        type: entry.type
+      }
 
-  const renderLeaderboardItem = (item: LeaderboardUser, index: number) => (
-    <View key={item.id} style={styles.leaderboardItem}>
+      const success = await InstagramShare.shareToInstagram(shareData)
+      if (success) {
+        Alert.alert('Success', 'Shared to Instagram!')
+      }
+    } catch (error) {
+      console.error('Error sharing to Instagram:', error)
+      Alert.alert('Error', 'Failed to share to Instagram. Please try again.')
+    }
+  }
+
+  const getRankIcon = (position: number) => {
+    if (position === 1) return <Crown size={24} color="#FFD700" />
+    if (position === 2) return <Medal size={24} color="#C0C0C0" />
+    if (position === 3) return <Trophy size={24} color="#CD7F32" />
+    return null
+  }
+
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return '#00FF88'
+    if (score >= 80) return '#FFD700'
+    if (score >= 70) return '#FF8C00'
+    return '#FF1B6B'
+  }
+
+  const renderLeaderboardItem = (entry: LeaderboardEntry, index: number) => (
+    <Animated.View 
+      key={entry.id}
+      entering={FadeInDown.duration(600).delay(index * 100)}
+      style={{
+        backgroundColor: entry.isCurrentUser ? 'rgba(255, 27, 107, 0.1)' : 'rgba(255,255,255,0.9)',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: entry.isCurrentUser ? 2 : 0,
+        borderColor: entry.isCurrentUser ? '#FF1B6B' : 'transparent',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3
+      }}
+    >
       {/* Rank Badge */}
-      <View style={[
-        styles.rankBadge,
-        index < 3 ? styles.topRankBadge : styles.regularRankBadge
-      ]}>
-        {index < 3 ? (
-          <Ionicons 
-            name={index === 0 ? 'trophy' : index === 1 ? 'medal' : 'ribbon'} 
-            size={20} 
-            color="white" 
+      <View style={{
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: entry.rankPosition <= 3 ? '#FFD700' : 'rgba(255,255,255,0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16
+      }}>
+        {getRankIcon(entry.rankPosition) || (
+          <Text style={{
+            fontSize: 16,
+            fontWeight: 'bold',
+            color: entry.rankPosition <= 3 ? '#000' : '#666'
+          }}>
+            {entry.rankPosition}
+          </Text>
+        )}
+      </View>
+
+      {/* Profile Image */}
+      <View style={{
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        overflow: 'hidden',
+        marginRight: 16,
+        backgroundColor: '#f0f0f0'
+      }}>
+        {entry.imageUrl ? (
+          <Image
+            source={{ uri: entry.imageUrl }}
+            style={{ width: '100%', height: '100%' }}
+            resizeMode="cover"
           />
         ) : (
-          <Text style={styles.rankNumber}>{item.rank_position}</Text>
+          <View style={{
+            width: '100%',
+            height: '100%',
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: '#e0e0e0'
+          }}>
+            <Users size={24} color="#999" />
+          </View>
+        )}
+        
+        {/* Live Pic Badge */}
+        {entry.type === 'live_pic' && (
+          <View style={{
+            position: 'absolute',
+            bottom: 2,
+            right: 2,
+            width: 16,
+            height: 16,
+            borderRadius: 8,
+            backgroundColor: '#FF0000',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}>
+            <Text style={{
+              fontSize: 8,
+              color: 'white',
+              fontWeight: 'bold'
+            }}>
+              L
+            </Text>
+          </View>
         )}
       </View>
 
       {/* User Info */}
-      <View style={styles.userInfo}>
-        <Text style={styles.userName}>
-          {item.display_name || 'Anonymous User'}
+      <View style={{ flex: 1 }}>
+        <Text style={{
+          fontSize: 16,
+          fontWeight: 'bold',
+          color: '#333',
+          marginBottom: 4
+        }}>
+          {entry.displayName}
+          {entry.isCurrentUser && (
+            <Text style={{ color: '#FF1B6B', fontSize: 14 }}> (You)</Text>
+          )}
         </Text>
-        <Text style={styles.userCity}>{item.city}</Text>
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center'
+        }}>
+          <MapPin size={12} color="#666" />
+          <Text style={{
+            fontSize: 12,
+            color: '#666',
+            marginLeft: 4
+          }}>
+            {entry.city}
+          </Text>
+        </View>
       </View>
 
       {/* Score */}
-      <View style={styles.scoreContainer}>
-        {isPremium || item.is_current_user ? (
-          <Text style={styles.scoreText}>{item.current_score}</Text>
-        ) : (
-          <View style={styles.lockedScore}>
-            <Text style={styles.lockedText}>🔒</Text>
-          </View>
-        )}
-        <Text style={styles.positionText}>#{item.rank_position}</Text>
+      <View style={{ alignItems: 'center', marginRight: 12 }}>
+        <Text style={{
+          fontSize: 20,
+          fontWeight: 'bold',
+          color: isPremium || entry.isCurrentUser ? getScoreColor(entry.score) : '#ccc'
+        }}>
+          {isPremium || entry.isCurrentUser ? entry.score : '••'}
+        </Text>
+        <Text style={{
+          fontSize: 12,
+          color: '#666'
+        }}>
+          Score
+        </Text>
       </View>
-    </View>
-  );
+
+      {/* Share Button */}
+      {(isPremium || entry.isCurrentUser) && (
+        <TouchableOpacity
+          onPress={() => handleShareLeaderboard(entry)}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: '#E4405F',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}
+        >
+          <Instagram size={16} color="white" />
+        </TouchableOpacity>
+      )}
+    </Animated.View>
+  )
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading leaderboard...</Text>
-        </View>
-      </SafeAreaView>
-    );
+      <LinearGradient
+        colors={['#FF1B6B', '#45CAFF']}
+        style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+      >
+        <Text style={{ fontSize: 16, color: 'white' }}>Loading leaderboard...</Text>
+      </LinearGradient>
+    )
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#374151" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Leaderboard</Text>
-        <TouchableOpacity onPress={onRefresh}>
-          <Ionicons name="refresh" size={24} color="#374151" />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView 
-        style={styles.scrollView}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* City Header */}
-        <View style={styles.cityContainer}>
-          <LinearGradient
-            colors={['#FF1B6B', '#45CAFF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.cityGradient}
+    <LinearGradient
+      colors={['#FF1B6B', '#45CAFF']}
+      style={{ flex: 1 }}
+    >
+      <View style={{ flex: 1, paddingTop: 60 }}>
+        {/* Header */}
+        <Animated.View 
+          entering={FadeInUp.duration(600)}
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingHorizontal: 24,
+            marginBottom: 24
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}
           >
-            <View style={styles.cityContent}>
-              <Ionicons name="location" size={24} color="white" />
-              <Text style={styles.cityTitle}>{city}</Text>
-              <Text style={styles.citySubtitle}>Hotness Rankings</Text>
+            <ArrowLeft size={20} color="white" />
+          </TouchableOpacity>
+
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{
+              fontSize: 20,
+              fontWeight: 'bold',
+              color: 'white'
+            }}>
+              Leaderboard
+            </Text>
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              marginTop: 4
+            }}>
+              <MapPin size={12} color="rgba(255,255,255,0.8)" />
+              <Text style={{
+                fontSize: 12,
+                color: 'rgba(255,255,255,0.8)',
+                marginLeft: 4
+              }}>
+                {city}
+              </Text>
             </View>
-          </LinearGradient>
-        </View>
+          </View>
+
+          <TouchableOpacity
+            onPress={onRefresh}
+            disabled={refreshing}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              opacity: refreshing ? 0.5 : 1
+            }}
+          >
+            <RefreshCw size={20} color="white" />
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* Your Rank Card */}
         {userRank && (
-          <View style={styles.userRankCard}>
-            <View style={styles.userRankContent}>
-              <View>
-                <Text style={styles.userRankLabel}>Your Rank</Text>
-                {isPremium ? (
-                  <Text style={styles.userRankNumber}>#{userRank.rank}</Text>
-                ) : (
-                  <View style={styles.userRankLocked}>
-                    <Text style={styles.userRankLockedText}>#???</Text>
-                    <Ionicons name="lock-closed" size={20} color="#D1D5DB" style={styles.lockIcon} />
-                  </View>
-                )}
-                <Text style={styles.userScore}>
-                  Score: {isPremium ? userRank.score : '🔒'}
+          <Animated.View 
+            entering={FadeInDown.duration(600).delay(100)}
+            style={{
+              marginHorizontal: 24,
+              marginBottom: 24,
+              backgroundColor: 'rgba(255,255,255,0.15)',
+              borderRadius: 20,
+              padding: 20
+            }}
+          >
+            <Text style={{
+              fontSize: 16,
+              color: 'rgba(255,255,255,0.8)',
+              marginBottom: 12,
+              textAlign: 'center'
+            }}>
+              Your Current Rank
+            </Text>
+            
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{
+                  fontSize: 32,
+                  fontWeight: 'bold',
+                  color: isPremium ? '#FFD700' : '#ccc'
+                }}>
+                  {isPremium ? `#${userRank.rank}` : '#••••'}
+                </Text>
+                <Text style={{
+                  fontSize: 14,
+                  color: 'rgba(255,255,255,0.8)'
+                }}>
+                  Position
                 </Text>
               </View>
-              <View style={styles.userAvatar}>
-                <Ionicons name="person-circle" size={48} color="#FF1B6B" />
-                <Text style={styles.userLabel}>You</Text>
+              
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{
+                  fontSize: 32,
+                  fontWeight: 'bold',
+                  color: isPremium ? getScoreColor(userRank.score) : '#ccc'
+                }}>
+                  {isPremium ? userRank.score : '••'}
+                </Text>
+                <Text style={{
+                  fontSize: 14,
+                  color: 'rgba(255,255,255,0.8)'
+                }}>
+                  Score
+                </Text>
               </View>
             </View>
 
             {!isPremium && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => router.push('/subscription')}
-                style={styles.unlockButton}
+                style={{
+                  backgroundColor: '#FFD700',
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  paddingHorizontal: 20,
+                  marginTop: 16,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
               >
-                <Text style={styles.unlockButtonText}>
-                  Unlock Your Exact Rank 🔓
+                <Crown size={16} color="#000" />
+                <Text style={{
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  color: '#000',
+                  marginLeft: 8
+                }}>
+                  Unlock Exact Rankings
                 </Text>
               </TouchableOpacity>
             )}
-          </View>
-        )}
-
-        {/* Premium Notice */}
-        {!isPremium && (
-          <View style={styles.premiumNotice}>
-            <View style={styles.premiumHeader}>
-              <Ionicons name="star" size={20} color="#F59E0B" />
-              <Text style={styles.premiumTitle}>Premium Feature</Text>
-            </View>
-            <Text style={styles.premiumDescription}>
-              Upgrade to see exact scores and your precise ranking position
-            </Text>
-          </View>
+          </Animated.View>
         )}
 
         {/* Leaderboard List */}
-        <View style={styles.leaderboardContainer}>
-          <Text style={styles.leaderboardTitle}>Top Hotties in {city}</Text>
-          
-          {leaderboard.length > 0 ? (
-            leaderboard.map((item, index) => renderLeaderboardItem(item, index))
-          ) : (
-            <View style={styles.emptyState}>
-              <Ionicons name="people" size={48} color="#D1D5DB" />
-              <Text style={styles.emptyText}>
-                No rankings yet in your city.{'\n'}Be the first to set the standard!
+        <ScrollView
+          style={{ flex: 1, paddingHorizontal: 24 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View entering={FadeInDown.duration(600).delay(200)}>
+            <Text style={{
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: 'white',
+              marginBottom: 16,
+              textAlign: 'center'
+            }}>
+              🔥 Top Hotties in {city}
+            </Text>
+          </Animated.View>
+
+          {!isPremium && (
+            <Animated.View 
+              entering={FadeInDown.duration(600).delay(300)}
+              style={{
+                backgroundColor: 'rgba(255,215,0,0.2)',
+                borderRadius: 16,
+                padding: 16,
+                marginBottom: 16,
+                borderWidth: 1,
+                borderColor: 'rgba(255,215,0,0.3)'
+              }}
+            >
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginBottom: 8
+              }}>
+                <Star size={20} color="#FFD700" />
+                <Text style={{
+                  fontSize: 16,
+                  fontWeight: 'bold',
+                  color: 'white',
+                  marginLeft: 8
+                }}>
+                  Premium Feature
+                </Text>
+              </View>
+              <Text style={{
+                fontSize: 14,
+                color: 'rgba(255,255,255,0.9)',
+                lineHeight: 20
+              }}>
+                Upgrade to see exact scores and share leaderboard results to Instagram
               </Text>
-              <TouchableOpacity 
-                onPress={() => router.push('/camera')}
-                style={styles.takeSelfieButton}
-              >
-                <Text style={styles.takeSelfieButtonText}>Take Your Selfie</Text>
-              </TouchableOpacity>
-            </View>
+            </Animated.View>
           )}
-        </View>
 
-        {/* Bottom Spacing */}
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
-    </SafeAreaView>
-  );
+          {leaderboard.length > 0 ? (
+            leaderboard.map((entry, index) => renderLeaderboardItem(entry, index))
+          ) : (
+            <Animated.View 
+              entering={FadeInDown.duration(600).delay(400)}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                borderRadius: 20,
+                padding: 32,
+                alignItems: 'center',
+                marginTop: 32
+              }}
+            >
+              <Users size={48} color="rgba(255,255,255,0.6)" />
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: 'white',
+                textAlign: 'center',
+                marginTop: 16,
+                marginBottom: 8
+              }}>
+                No Rankings Yet
+              </Text>
+              <Text style={{
+                fontSize: 14,
+                color: 'rgba(255,255,255,0.8)',
+                textAlign: 'center',
+                marginBottom: 24
+              }}>
+                Be the first to set the standard in {city}!
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push('/camera')}
+                style={{
+                  backgroundColor: 'white',
+                  borderRadius: 16,
+                  paddingVertical: 12,
+                  paddingHorizontal: 24,
+                  flexDirection: 'row',
+                  alignItems: 'center'
+                }}
+              >
+                <Camera size={20} color="#FF1B6B" />
+                <Text style={{
+                  fontSize: 16,
+                  fontWeight: 'bold',
+                  color: '#FF1B6B',
+                  marginLeft: 8
+                }}>
+                  Take Your Selfie
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
+      </View>
+    </LinearGradient>
+  )
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    color: '#6B7280',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  cityContainer: {
-    marginHorizontal: 24,
-    marginTop: 16,
-  },
-  cityGradient: {
-    borderRadius: 16,
-    padding: 24,
-  },
-  cityContent: {
-    alignItems: 'center',
-  },
-  cityTitle: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginTop: 8,
-  },
-  citySubtitle: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 16,
-  },
-  userRankCard: {
-    marginHorizontal: 24,
-    marginTop: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-    borderColor: '#FBCFE8',
-    borderWidth: 2,
-  },
-  userRankContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  userRankLabel: {
-    color: '#4B5563',
-    fontSize: 14,
-  },
-  userRankNumber: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: '#EC4899',
-  },
-  userRankLocked: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  userRankLockedText: {
-    fontSize: 30,
-    fontWeight: 'bold',
-    color: '#D1D5DB',
-  },
-  lockIcon: {
-    marginLeft: 8,
-  },
-  userScore: {
-    color: '#6B7280',
-    fontSize: 14,
-  },
-  userAvatar: {
-    alignItems: 'center',
-  },
-  userLabel: {
-    color: '#4B5563',
-    fontSize: 14,
-    marginTop: 4,
-  },
-  unlockButton: {
-    marginTop: 16,
-    backgroundColor: '#EC4899',
-    borderRadius: 12,
-    padding: 12,
-  },
-  unlockButtonText: {
-    color: '#FFFFFF',
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  premiumNotice: {
-    marginHorizontal: 24,
-    marginTop: 16,
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FDE68A',
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 16,
-  },
-  premiumHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  premiumTitle: {
-    color: '#92400E',
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  premiumDescription: {
-    color: '#B45309',
-    fontSize: 14,
-    marginTop: 4,
-  },
-  leaderboardContainer: {
-    paddingHorizontal: 24,
-    marginTop: 24,
-  },
-  leaderboardTitle: {
-    color: '#111827',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  leaderboardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  rankBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  topRankBadge: {
-    backgroundColor: '#F59E0B',
-  },
-  regularRankBadge: {
-    backgroundColor: '#F3F4F6',
-  },
-  rankNumber: {
-    color: '#4B5563',
-    fontWeight: '600',
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    color: '#111827',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  userCity: {
-    color: '#6B7280',
-    fontSize: 14,
-  },
-  scoreContainer: {
-    alignItems: 'flex-end',
-  },
-  scoreText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#EC4899',
-  },
-  lockedScore: {
-    backgroundColor: '#E5E7EB',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  lockedText: {
-    color: '#9CA3AF',
-    fontWeight: '600',
-  },
-  positionText: {
-    color: '#9CA3AF',
-    fontSize: 12,
-  },
-  emptyState: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-  },
-  emptyText: {
-    color: '#6B7280',
-    textAlign: 'center',
-    marginTop: 16,
-  },
-  takeSelfieButton: {
-    marginTop: 16,
-    backgroundColor: '#EC4899',
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  takeSelfieButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  bottomSpacing: {
-    height: 80,
-  },
-});
