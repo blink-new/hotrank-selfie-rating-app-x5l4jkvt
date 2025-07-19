@@ -37,6 +37,10 @@ export default function Results() {
   const type = params.type as string || 'photo'
   const city = params.city as string || 'Your City'
 
+  // Debug logging
+  console.log('Results page params:', params)
+  console.log('Parsed values:', { score, rank, imageUrl, videoUrl, type, city })
+
   useEffect(() => {
     const unsubscribe = blink.auth.onAuthStateChanged((state) => {
       setUser(state.user)

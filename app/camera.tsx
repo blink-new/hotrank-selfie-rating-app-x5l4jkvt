@@ -288,18 +288,34 @@ export default function Camera() {
       await updateLeaderboard(user.id, selfie.id, city, score, rank)
 
       console.log('Processing complete, navigating to results...')
-      // Navigate to results
-      router.push({
-        pathname: '/results',
-        params: { 
+      
+      // Reset processing state before navigation
+      setIsProcessing(false)
+      
+      // Small delay to ensure state is updated before navigation
+      setTimeout(() => {
+        console.log('Navigating to results with params:', {
           selfieId: selfie.id,
           score: score.toString(),
           rank: rank.toString(),
           city: city,
           imageUrl: publicUrl,
           type: 'photo'
-        }
-      })
+        })
+        
+        // Navigate to results
+        router.push({
+          pathname: '/results',
+          params: { 
+            selfieId: selfie.id,
+            score: score.toString(),
+            rank: rank.toString(),
+            city: city,
+            imageUrl: publicUrl,
+            type: 'photo'
+          }
+        })
+      }, 100)
 
     } catch (error) {
       console.error('Error processing photo:', error)
@@ -351,6 +367,9 @@ export default function Camera() {
       // Update leaderboard
       await updateLeaderboard(user.id, selfie.id, city, score, rank)
 
+      // Reset processing state before navigation
+      setIsProcessing(false)
+
       // Navigate to results
       router.push({
         pathname: '/results',
@@ -367,7 +386,6 @@ export default function Camera() {
     } catch (error) {
       console.error('Error processing video:', error)
       Alert.alert('Error', 'Failed to process your live pic. Please try again.')
-    } finally {
       setIsProcessing(false)
     }
   }
