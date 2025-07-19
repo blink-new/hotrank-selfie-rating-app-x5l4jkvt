@@ -70,7 +70,7 @@ export default function Camera() {
       })
       
       if (userRecord.length > 0) {
-        setIsPremium(userRecord[0].subscriptionStatus === 'active')
+        setIsPremium(userRecord[0].subscription_status === 'active')
       }
     } catch (error) {
       console.error('Error checking premium status:', error)
@@ -79,13 +79,21 @@ export default function Camera() {
 
   const loadFilters = async () => {
     try {
-      const filtersData = await blink.db.filters.list()
-      setFilters(filtersData.map(f => ({
-        id: f.id,
-        name: f.name,
-        type: f.type,
-        isPremium: Number(f.isPremium) > 0
-      })))
+      // TODO: Implement filters table
+      // const filtersData = await blink.db.filters.list()
+      // setFilters(filtersData.map(f => ({
+      //   id: f.id,
+      //   name: f.name,
+      //   type: f.type,
+      //   isPremium: Number(f.isPremium) > 0
+      // })))
+      
+      // Mock filters for now
+      setFilters([
+        { id: '1', name: 'Glow', type: 'beauty', isPremium: false },
+        { id: '2', name: 'Vintage', type: 'style', isPremium: true },
+        { id: '3', name: 'Smooth', type: 'beauty', isPremium: true }
+      ])
     } catch (error) {
       console.error('Error loading filters:', error)
     }
@@ -260,32 +268,25 @@ export default function Camera() {
       await blink.db.users.upsert({
         id: user.id,
         email: user.email || '',
-        displayName: user.displayName || user.email?.split('@')[0] || 'User',
-        subscriptionStatus: isPremium ? 'active' : 'free',
-        city: city,
-        updatedAt: new Date().toISOString()
+        display_name: user.displayName || user.email?.split('@')[0] || 'User',
+        subscription_status: isPremium ? 'active' : 'free'
       })
 
       // Save selfie to database
       console.log('Saving selfie to database...')
       const selfie = await blink.db.selfies.create({
         id: `selfie_${Date.now()}`,
-        userId: user.id,
-        imageUrl: publicUrl,
-        type: 'photo',
+        user_id: user.id,
+        image_url: publicUrl,
         score: score,
-        rank: rank,
-        rankPosition: rank,
-        city: city,
-        isFiltered: selectedFilter ? 1 : 0,
-        filterType: selectedFilter?.name || null,
-        createdAt: new Date().toISOString()
+        rank_position: rank,
+        city: city
       })
       console.log('Selfie saved:', selfie.id)
 
       // Update leaderboard
       console.log('Updating leaderboard...')
-      await updateLeaderboard(user.id, selfie.id, city, score, rank)
+      // await updateLeaderboard(user.id, selfie.id, city, score, rank) // TODO: Implement leaderboard
 
       console.log('Processing complete, navigating to results...')
       
@@ -294,24 +295,20 @@ export default function Camera() {
       
       // Navigate to results immediately with proper URL encoding
       console.log('Navigating to results with params:', {
-        selfieId: selfie.id,
         score: score.toString(),
         rank: rank.toString(),
         city: city,
-        imageUrl: publicUrl,
-        type: 'photo'
+        imageUrl: publicUrl
       })
       
       // Use replace instead of push to prevent back navigation issues
       router.replace({
         pathname: '/results',
         params: { 
-          selfieId: selfie.id,
           score: score.toString(),
           rank: rank.toString(),
           city: city,
-          imageUrl: publicUrl,
-          type: 'photo'
+          imageUrl: publicUrl
         }
       })
 
@@ -350,20 +347,15 @@ export default function Camera() {
       // Save live pic to database
       const selfie = await blink.db.selfies.create({
         id: `live_pic_${Date.now()}`,
-        userId: user.id,
-        videoUrl: publicUrl,
-        type: 'live_pic',
+        user_id: user.id,
+        image_url: publicUrl, // Store video URL in image_url field
         score: score,
-        rank: rank,
-        rankPosition: rank,
-        city: city,
-        isFiltered: selectedFilter ? 1 : 0,
-        filterType: selectedFilter?.name || null,
-        createdAt: new Date().toISOString()
+        rank_position: rank,
+        city: city
       })
 
       // Update leaderboard
-      await updateLeaderboard(user.id, selfie.id, city, score, rank)
+      // await updateLeaderboard(user.id, selfie.id, city, score, rank) // TODO: Implement leaderboard
 
       // Reset processing state before navigation
       setIsProcessing(false)
@@ -372,12 +364,10 @@ export default function Camera() {
       router.replace({
         pathname: '/results',
         params: { 
-          selfieId: selfie.id,
           score: score.toString(),
           rank: rank.toString(),
           city: city,
-          videoUrl: publicUrl,
-          type: 'live_pic'
+          imageUrl: publicUrl
         }
       })
 
