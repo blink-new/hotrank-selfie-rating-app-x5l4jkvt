@@ -61,20 +61,8 @@ export default function Camera() {
   }, [])
 
   const checkPremiumStatus = async (user: any) => {
-    if (!user) return
-    
-    try {
-      const userRecord = await blink.db.users.list({
-        where: { id: user.id },
-        limit: 1
-      })
-      
-      if (userRecord.length > 0) {
-        setIsPremium(userRecord[0].subscription_status === 'active')
-      }
-    } catch (error) {
-      console.error('Error checking premium status:', error)
-    }
+    // Always set as premium for testing
+    setIsPremium(true)
   }
 
   const loadFilters = async () => {
@@ -88,11 +76,13 @@ export default function Camera() {
       //   isPremium: Number(f.isPremium) > 0
       // })))
       
-      // Mock filters for now
+      // Mock filters for now - all free for testing
       setFilters([
         { id: '1', name: 'Glow', type: 'beauty', isPremium: false },
-        { id: '2', name: 'Vintage', type: 'style', isPremium: true },
-        { id: '3', name: 'Smooth', type: 'beauty', isPremium: true }
+        { id: '2', name: 'Vintage', type: 'style', isPremium: false },
+        { id: '3', name: 'Smooth', type: 'beauty', isPremium: false },
+        { id: '4', name: 'Dramatic', type: 'style', isPremium: false },
+        { id: '5', name: 'Natural', type: 'beauty', isPremium: false }
       ])
     } catch (error) {
       console.error('Error loading filters:', error)
@@ -423,18 +413,7 @@ export default function Camera() {
   }
 
   const selectFilter = (filter: Filter) => {
-    if (filter.isPremium && !isPremium) {
-      Alert.alert(
-        'Premium Filter',
-        'This filter requires a premium subscription. Upgrade to unlock all filters!',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Upgrade', onPress: () => router.push('/subscription') }
-        ]
-      )
-      return
-    }
-    
+    // All filters are free for testing
     setSelectedFilter(filter)
     setShowFilters(false)
   }

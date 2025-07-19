@@ -16,7 +16,7 @@ import {
   Eye
 } from 'lucide-react-native'
 import blink from '@/lib/blink'
-import { InstagramShare } from '@/utils/instagram'
+import { shareToInstagram } from '@/utils/instagram'
 
 interface HistoryEntry {
   id: string
@@ -106,10 +106,11 @@ export default function History() {
         score: entry.score,
         rank: entry.rankPosition,
         city: entry.city,
-        type: entry.type
+        type: entry.type,
+        isPremium: true // Always true for testing
       }
 
-      const success = await InstagramShare.shareToInstagram(shareData)
+      const success = await shareToInstagram(shareData)
       if (success) {
         Alert.alert('Success', 'Shared to Instagram!')
       }
