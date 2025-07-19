@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { View, Text, TouchableOpacity, Alert, Dimensions, ScrollView } from 'react-native'
+import { View, Text, TouchableOpacity, Alert, Dimensions, ScrollView, Platform } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera'
@@ -143,6 +143,37 @@ export default function Camera() {
   }
 
   const takePicture = async () => {
+    // Web fallback for testing
+    if (Platform.OS === 'web') {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'image/*'
+      input.capture = 'user' // Front camera preference
+      
+      input.onchange = (event: any) => {
+        const file = event.target.files[0]
+        if (file) {
+          setIsProcessing(true)
+          const reader = new FileReader()
+          reader.onload = async (e) => {
+            const imageUri = e.target?.result as string
+            
+            // Convert data URL to blob for processing
+            const response = await fetch(imageUri)
+            const blob = await response.blob()
+            
+            // Create a temporary URL for the blob
+            const tempUrl = URL.createObjectURL(blob)
+            await processPhoto(tempUrl)
+          }
+          reader.readAsDataURL(file)
+        }
+      }
+      
+      input.click()
+      return
+    }
+
     if (!cameraRef.current) return
 
     try {
@@ -316,73 +347,7 @@ export default function Camera() {
     }
   }
 
-  const generateRealScore = async (imageUrl: string): Promise<number> => {
-    try {
-      // Use Blink AI to analyze the image
-      const { text } = await blink.ai.generateText({
-        messages: [
-          {
-            role: "user",
-            content: [
-              { 
-                type: "text", 
-                text: "Analyze this selfie and rate the attractiveness on a scale of 60-100. Consider factors like lighting, composition, facial features, expression, and overall appeal. Respond with just the number." 
-              },
-              { type: "image", image: imageUrl }
-            ]
-          }
-        ]
-      })
-      
-      const score = parseInt(text.trim())
-      return isNaN(score) ? Math.floor(Math.random() * 30) + 70 : Math.max(60, Math.min(100, score))
-    } catch (error) {
-      console.error('Error generating real score:', error)
-      // Fallback to mock scoring
-      return Math.floor(Math.random() * 30) + 70
-    }
-  }
 
-  const generateRealVideoScore = async (videoUrl: string): Promise<number> => {
-    try {
-      // For video analysis, we'll use a different approach
-      // Since video analysis is complex, we'll give a slight bonus for live pics
-      const baseScore = Math.floor(Math.random() * 30) + 70
-      const livePicBonus = Math.floor(Math.random() * 5) + 2 // 2-6 point bonus
-      return Math.min(100, baseScore + livePicBonus)
-    } catch (error) {
-      console.error('Error generating video score:', error)
-      return Math.floor(Math.random() * 30) + 70
-    }
-  }
-
-  const generateCityRank = (score: number): number => {
-    let baseRank: number
-    
-    if (score >= 95) {
-      baseRank = Math.floor(Math.random() * 50) + 1
-    } else if (score >= 90) {
-      baseRank = Math.floor(Math.random() * 200) + 50
-    } else if (score >= 85) {
-      baseRank = Math.floor(Math.random() * 500) + 250
-    } else if (score >= 75) {
-      baseRank = Math.floor(Math.random() * 2000) + 750
-    } else {
-      baseRank = Math.floor(Math.random() * 7000) + 2750
-    }
-    
-    return Math.max(1, baseRank)
-  }
-
-  const getUserCity = async (): Promise<string> => {
-    try {
-      // In a real app, you'd use location services
-      // For now, return a default city
-      return 'Your City'
-    } catch (error) {
-      return 'Unknown City'
-    }
-  }
 
   const updateLeaderboard = async (userId: string, selfieId: string, city: string, score: number, rank: number) => {
     try {
@@ -652,169 +617,216 @@ export default function Camera() {
       </Animated.View>
 
       {/* Camera View */}
-      <CameraView 
-        ref={cameraRef}
-        style={{ flex: 1 }} 
-        facing={facing}
-      >
-        {/* Recording Timer */}
-        {isRecording && (
-          <Animated.View 
-            entering={FadeInUp.duration(300)}
-            style={{
-              position: 'absolute',
-              top: 240,
-              left: 0,
-              right: 0,
-              alignItems: 'center',
-              zIndex: 10
-            }}
-          >
-            <View style={{
-              backgroundColor: '#FF0000',
-              borderRadius: 20,
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              flexDirection: 'row',
-              alignItems: 'center'
-            }}>
-              <View style={{
-                width: 8,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: 'white',
-                marginRight: 8
-              }} />
-              <Text style={{
-                fontSize: 16,
-                fontWeight: 'bold',
-                color: 'white'
-              }}>
-                {recordingTime.toFixed(1)}s
-              </Text>
-            </View>
-          </Animated.View>
-        )}
-
-        {/* Camera Overlay */}
-        <View style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
+      {Platform.OS === 'web' ? (
+        <View style={{ 
+          flex: 1, 
+          backgroundColor: '#1a1a1a',
           justifyContent: 'center',
           alignItems: 'center'
         }}>
-          {/* Face Guide */}
-          <View style={{
-            width: width * 0.7,
-            height: width * 0.9,
-            borderRadius: 20,
-            borderWidth: 2,
-            borderColor: 'rgba(255,255,255,0.5)',
-            borderStyle: 'dashed'
-          }} />
+          <Animated.View entering={FadeInUp.duration(600)} style={{ alignItems: 'center', padding: 24 }}>
+            <CameraIcon size={64} color="rgba(255,255,255,0.5)" />
+            <Text style={{
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: 'white',
+              textAlign: 'center',
+              marginTop: 16,
+              marginBottom: 8
+            }}>
+              Camera Preview Not Available
+            </Text>
+            <Text style={{
+              fontSize: 14,
+              color: 'rgba(255,255,255,0.7)',
+              textAlign: 'center',
+              marginBottom: 24
+            }}>
+              Use the capture button below to select a photo from your device
+            </Text>
+            <View style={{
+              backgroundColor: 'rgba(255,27,107,0.1)',
+              borderRadius: 12,
+              padding: 16,
+              borderWidth: 1,
+              borderColor: 'rgba(255,27,107,0.3)'
+            }}>
+              <Text style={{
+                fontSize: 12,
+                color: '#FF1B6B',
+                textAlign: 'center',
+                fontWeight: '500'
+              }}>
+                💡 For full camera experience, use the Expo Go app on your phone
+              </Text>
+            </View>
+          </Animated.View>
         </View>
+      ) : (
+        <CameraView 
+          ref={cameraRef}
+          style={{ flex: 1 }} 
+          facing={facing}
+        >
+          {/* Recording Timer */}
+          {isRecording && (
+            <Animated.View 
+              entering={FadeInUp.duration(300)}
+              style={{
+                position: 'absolute',
+                top: 240,
+                left: 0,
+                right: 0,
+                alignItems: 'center',
+                zIndex: 10
+              }}
+            >
+              <View style={{
+                backgroundColor: '#FF0000',
+                borderRadius: 20,
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+                flexDirection: 'row',
+                alignItems: 'center'
+              }}>
+                <View style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: 'white',
+                  marginRight: 8
+                }} />
+                <Text style={{
+                  fontSize: 16,
+                  fontWeight: 'bold',
+                  color: 'white'
+                }}>
+                  {recordingTime.toFixed(1)}s
+                </Text>
+              </View>
+            </Animated.View>
+          )}
 
-        {/* Bottom Controls */}
-        <Animated.View 
-          entering={FadeInDown.duration(600)}
-          style={{
+          {/* Camera Overlay */}
+          <View style={{
             position: 'absolute',
-            bottom: 60,
+            top: 0,
             left: 0,
             right: 0,
-            flexDirection: 'row',
-            justifyContent: 'space-around',
-            alignItems: 'center',
-            paddingHorizontal: 24
-          }}
-        >
-          {/* Gallery Button */}
-          <TouchableOpacity
-            onPress={pickImage}
-            disabled={isRecording}
-            style={{
-              width: 60,
-              height: 60,
-              borderRadius: 30,
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              justifyContent: 'center',
-              alignItems: 'center',
-              opacity: isRecording ? 0.5 : 1
-            }}
-          >
-            <ImageIcon size={24} color="white" />
-          </TouchableOpacity>
-
-          {/* Capture Button */}
-          <TouchableOpacity
-            onPress={captureMode === 'live_pic' ? (isRecording ? stopRecording : startRecording) : takePicture}
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: 40,
-              backgroundColor: isRecording ? '#FF0000' : 'white',
-              justifyContent: 'center',
-              alignItems: 'center',
-              borderWidth: 4,
-              borderColor: 'rgba(255,255,255,0.3)'
-            }}
-          >
-            {captureMode === 'live_pic' ? (
-              <VideoIcon size={32} color={isRecording ? 'white' : '#FF1B6B'} />
-            ) : (
-              <View style={{
-                width: 60,
-                height: 60,
-                borderRadius: 30,
-                backgroundColor: '#FF1B6B'
-              }} />
-            )}
-          </TouchableOpacity>
-
-          {/* Mode Icon */}
-          <View style={{
-            width: 60,
-            height: 60,
+            bottom: 0,
             justifyContent: 'center',
             alignItems: 'center'
           }}>
-            {captureMode === 'live_pic' ? (
-              <VideoIcon size={24} color="rgba(255,255,255,0.7)" />
-            ) : (
-              <CameraIcon size={24} color="rgba(255,255,255,0.7)" />
-            )}
+            {/* Face Guide */}
+            <View style={{
+              width: width * 0.7,
+              height: width * 0.9,
+              borderRadius: 20,
+              borderWidth: 2,
+              borderColor: 'rgba(255,255,255,0.5)',
+              borderStyle: 'dashed'
+            }} />
           </View>
-        </Animated.View>
 
-        {/* Tips */}
-        <Animated.View 
-          entering={FadeInUp.duration(600).delay(300)}
+          {/* Tips */}
+          <Animated.View 
+            entering={FadeInUp.duration(600).delay(300)}
+            style={{
+              position: 'absolute',
+              top: 280,
+              left: 24,
+              right: 24,
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              borderRadius: 12,
+              padding: 16
+            }}
+          >
+            <Text style={{
+              fontSize: 14,
+              color: 'white',
+              textAlign: 'center',
+              fontWeight: '500'
+            }}>
+              {captureMode === 'live_pic' 
+                ? '🎥 Record a 5-second live pic for higher scores!'
+                : '💡 Position your face in the frame for best results'
+              }
+            </Text>
+          </Animated.View>
+        </CameraView>
+      )}
+
+      {/* Bottom Controls - Outside camera view for web compatibility */}
+      <Animated.View 
+        entering={FadeInDown.duration(600)}
+        style={{
+          position: 'absolute',
+          bottom: 60,
+          left: 0,
+          right: 0,
+          flexDirection: 'row',
+          justifyContent: 'space-around',
+          alignItems: 'center',
+          paddingHorizontal: 24
+        }}
+      >
+        {/* Gallery Button */}
+        <TouchableOpacity
+          onPress={pickImage}
+          disabled={isRecording}
           style={{
-            position: 'absolute',
-            top: 280,
-            left: 24,
-            right: 24,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            borderRadius: 12,
-            padding: 16
+            width: 60,
+            height: 60,
+            borderRadius: 30,
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            opacity: isRecording ? 0.5 : 1
           }}
         >
-          <Text style={{
-            fontSize: 14,
-            color: 'white',
-            textAlign: 'center',
-            fontWeight: '500'
-          }}>
-            {captureMode === 'live_pic' 
-              ? '🎥 Record a 5-second live pic for higher scores!'
-              : '💡 Position your face in the frame for best results'
-            }
-          </Text>
-        </Animated.View>
-      </CameraView>
+          <ImageIcon size={24} color="white" />
+        </TouchableOpacity>
+
+        {/* Capture Button */}
+        <TouchableOpacity
+          onPress={captureMode === 'live_pic' ? (isRecording ? stopRecording : startRecording) : takePicture}
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: 40,
+            backgroundColor: isRecording ? '#FF0000' : 'white',
+            justifyContent: 'center',
+            alignItems: 'center',
+            borderWidth: 4,
+            borderColor: 'rgba(255,255,255,0.3)'
+          }}
+        >
+          {captureMode === 'live_pic' ? (
+            <VideoIcon size={32} color={isRecording ? 'white' : '#FF1B6B'} />
+          ) : (
+            <View style={{
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+              backgroundColor: '#FF1B6B'
+            }} />
+          )}
+        </TouchableOpacity>
+
+        {/* Mode Icon */}
+        <View style={{
+          width: 60,
+          height: 60,
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          {captureMode === 'live_pic' ? (
+            <VideoIcon size={24} color="rgba(255,255,255,0.7)" />
+          ) : (
+            <CameraIcon size={24} color="rgba(255,255,255,0.7)" />
+          )}
+        </View>
+      </Animated.View>
 
       {/* Filters Modal */}
       {showFilters && (
