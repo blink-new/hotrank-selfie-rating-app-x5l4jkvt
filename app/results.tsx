@@ -38,8 +38,21 @@ export default function Results() {
   const city = params.city as string || 'Your City'
 
   // Debug logging
+  console.log('Results page mounted')
   console.log('Results page params:', params)
   console.log('Parsed values:', { score, rank, imageUrl, videoUrl, type, city })
+  
+  // Check if we have valid data
+  if (!params.score || !params.rank) {
+    console.error('Missing required parameters in results page')
+    console.log('Available params keys:', Object.keys(params))
+    
+    // If no parameters, redirect back to camera after a short delay
+    setTimeout(() => {
+      console.log('No valid parameters found, redirecting to camera')
+      router.replace('/camera')
+    }, 2000)
+  }
 
   useEffect(() => {
     const unsubscribe = blink.auth.onAuthStateChanged((state) => {
@@ -183,6 +196,35 @@ export default function Results() {
     } catch (error) {
       Alert.alert('Error', 'Failed to download. Please try again.')
     }
+  }
+
+  // Show loading if no valid parameters
+  if (!params.score || !params.rank) {
+    return (
+      <LinearGradient
+        colors={['#FF1B6B', '#45CAFF']}
+        style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+      >
+        <Animated.View entering={FadeInUp.duration(600)} style={{ alignItems: 'center' }}>
+          <Text style={{
+            fontSize: 24,
+            fontWeight: 'bold',
+            color: 'white',
+            textAlign: 'center',
+            marginBottom: 16
+          }}>
+            Loading Results...
+          </Text>
+          <Text style={{
+            fontSize: 16,
+            color: 'rgba(255,255,255,0.8)',
+            textAlign: 'center'
+          }}>
+            If this takes too long, we'll redirect you back to the camera
+          </Text>
+        </Animated.View>
+      </LinearGradient>
+    )
   }
 
   return (

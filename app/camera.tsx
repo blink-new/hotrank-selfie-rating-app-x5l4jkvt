@@ -292,30 +292,28 @@ export default function Camera() {
       // Reset processing state before navigation
       setIsProcessing(false)
       
-      // Small delay to ensure state is updated before navigation
-      setTimeout(() => {
-        console.log('Navigating to results with params:', {
+      // Navigate to results immediately with proper URL encoding
+      console.log('Navigating to results with params:', {
+        selfieId: selfie.id,
+        score: score.toString(),
+        rank: rank.toString(),
+        city: city,
+        imageUrl: publicUrl,
+        type: 'photo'
+      })
+      
+      // Use replace instead of push to prevent back navigation issues
+      router.replace({
+        pathname: '/results',
+        params: { 
           selfieId: selfie.id,
           score: score.toString(),
           rank: rank.toString(),
           city: city,
           imageUrl: publicUrl,
           type: 'photo'
-        })
-        
-        // Navigate to results
-        router.push({
-          pathname: '/results',
-          params: { 
-            selfieId: selfie.id,
-            score: score.toString(),
-            rank: rank.toString(),
-            city: city,
-            imageUrl: publicUrl,
-            type: 'photo'
-          }
-        })
-      }, 100)
+        }
+      })
 
     } catch (error) {
       console.error('Error processing photo:', error)
@@ -370,8 +368,8 @@ export default function Camera() {
       // Reset processing state before navigation
       setIsProcessing(false)
 
-      // Navigate to results
-      router.push({
+      // Navigate to results with replace to prevent back navigation issues
+      router.replace({
         pathname: '/results',
         params: { 
           selfieId: selfie.id,
