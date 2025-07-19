@@ -40,7 +40,7 @@ export default function LeaderboardScreen() {
   const [userRank, setUserRank] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [isPremium, setIsPremium] = useState(false)
+  const [isPremium, setIsPremium] = useState(true) // Always true for testing
   const [city, setCity] = useState('Your City')
 
   useEffect(() => {
@@ -66,8 +66,7 @@ export default function LeaderboardScreen() {
       })
       
       if (userRecord.length > 0) {
-        const isActive = userRecord[0].subscriptionStatus === 'active'
-        setIsPremium(isActive)
+        setIsPremium(true) // Always true for testing
         setCity(userRecord[0].city || 'Your City')
       }
 
@@ -318,9 +317,9 @@ export default function LeaderboardScreen() {
         <Text style={{
           fontSize: 20,
           fontWeight: 'bold',
-          color: isPremium || entry.isCurrentUser ? getScoreColor(entry.score) : '#ccc'
+          color: getScoreColor(entry.score)
         }}>
-          {isPremium || entry.isCurrentUser ? entry.score : '••'}
+          {entry.score}
         </Text>
         <Text style={{
           fontSize: 12,
@@ -331,21 +330,19 @@ export default function LeaderboardScreen() {
       </View>
 
       {/* Share Button */}
-      {(isPremium || entry.isCurrentUser) && (
-        <TouchableOpacity
-          onPress={() => handleShareLeaderboard(entry)}
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: '#E4405F',
-            justifyContent: 'center',
-            alignItems: 'center'
-          }}
-        >
-          <Instagram size={16} color="white" />
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        onPress={() => handleShareLeaderboard(entry)}
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          backgroundColor: '#E4405F',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}
+      >
+        <Instagram size={16} color="white" />
+      </TouchableOpacity>
     </Animated.View>
   )
 
@@ -462,9 +459,9 @@ export default function LeaderboardScreen() {
                 <Text style={{
                   fontSize: 32,
                   fontWeight: 'bold',
-                  color: isPremium ? '#FFD700' : '#ccc'
+                  color: '#FFD700'
                 }}>
-                  {isPremium ? `#${userRank.rank}` : '#••••'}
+                  #{userRank.rank}
                 </Text>
                 <Text style={{
                   fontSize: 14,
@@ -478,9 +475,9 @@ export default function LeaderboardScreen() {
                 <Text style={{
                   fontSize: 32,
                   fontWeight: 'bold',
-                  color: isPremium ? getScoreColor(userRank.score) : '#ccc'
+                  color: getScoreColor(userRank.score)
                 }}>
-                  {isPremium ? userRank.score : '••'}
+                  {userRank.score}
                 </Text>
                 <Text style={{
                   fontSize: 14,
@@ -491,31 +488,7 @@ export default function LeaderboardScreen() {
               </View>
             </View>
 
-            {!isPremium && (
-              <TouchableOpacity
-                onPress={() => router.push('/subscription')}
-                style={{
-                  backgroundColor: '#FFD700',
-                  borderRadius: 12,
-                  paddingVertical: 12,
-                  paddingHorizontal: 20,
-                  marginTop: 16,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <Crown size={16} color="#000" />
-                <Text style={{
-                  fontSize: 14,
-                  fontWeight: 'bold',
-                  color: '#000',
-                  marginLeft: 8
-                }}>
-                  Unlock Exact Rankings
-                </Text>
-              </TouchableOpacity>
-            )}
+            {/* Premium upgrade button removed for testing */}
           </Animated.View>
         )}
 
@@ -539,42 +512,7 @@ export default function LeaderboardScreen() {
             </Text>
           </Animated.View>
 
-          {!isPremium && (
-            <Animated.View 
-              entering={FadeInDown.duration(600).delay(300)}
-              style={{
-                backgroundColor: 'rgba(255,215,0,0.2)',
-                borderRadius: 16,
-                padding: 16,
-                marginBottom: 16,
-                borderWidth: 1,
-                borderColor: 'rgba(255,215,0,0.3)'
-              }}
-            >
-              <View style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginBottom: 8
-              }}>
-                <Star size={20} color="#FFD700" />
-                <Text style={{
-                  fontSize: 16,
-                  fontWeight: 'bold',
-                  color: 'white',
-                  marginLeft: 8
-                }}>
-                  Premium Feature
-                </Text>
-              </View>
-              <Text style={{
-                fontSize: 14,
-                color: 'rgba(255,255,255,0.9)',
-                lineHeight: 20
-              }}>
-                Upgrade to see exact scores and share leaderboard results to Instagram
-              </Text>
-            </Animated.View>
-          )}
+          {/* Premium feature notice removed for testing */}
 
           {leaderboard.length > 0 ? (
             leaderboard.map((entry, index) => renderLeaderboardItem(entry, index))

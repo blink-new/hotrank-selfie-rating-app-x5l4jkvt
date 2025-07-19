@@ -46,7 +46,7 @@ interface RecentSelfie {
 
 export default function Dashboard() {
   const [user, setUser] = useState(null)
-  const [isPremium, setIsPremium] = useState(false)
+  const [isPremium, setIsPremium] = useState(true) // Always true for testing
   const [userStats, setUserStats] = useState<UserStats | null>(null)
   const [recentSelfies, setRecentSelfies] = useState<RecentSelfie[]>([])
   const [loading, setLoading] = useState(true)
@@ -84,18 +84,8 @@ export default function Dashboard() {
   }
 
   const checkPremiumStatus = async (user: any) => {
-    try {
-      const userRecord = await blink.db.users.list({
-        where: { id: user.id },
-        limit: 1
-      })
-      
-      if (userRecord.length > 0) {
-        setIsPremium(userRecord[0].subscriptionStatus === 'active')
-      }
-    } catch (error) {
-      console.error('Error checking premium status:', error)
-    }
+    // Always set as premium for testing
+    setIsPremium(true)
   }
 
   const loadUserStats = async (currentUser: any) => {
@@ -348,7 +338,7 @@ export default function Dashboard() {
                 color: 'white',
                 marginTop: 8
               }}>
-                {isPremium ? userStats.bestScore : '••'}
+                {userStats.bestScore}
               </Text>
               <Text style={{
                 fontSize: 12,
@@ -373,7 +363,7 @@ export default function Dashboard() {
                 color: 'white',
                 marginTop: 8
               }}>
-                {isPremium ? `#${userStats.currentRank}` : '#••••'}
+                #{userStats.currentRank}
               </Text>
               <Text style={{
                 fontSize: 12,
@@ -448,66 +438,7 @@ export default function Dashboard() {
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Premium Upgrade */}
-        {!isPremium && (
-          <Animated.View 
-            entering={FadeInLeft.duration(600).delay(300)}
-            style={{
-              marginHorizontal: 24,
-              marginBottom: 32,
-              backgroundColor: 'rgba(255,215,0,0.2)',
-              borderRadius: 20,
-              padding: 20,
-              borderWidth: 2,
-              borderColor: '#FFD700'
-            }}
-          >
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              marginBottom: 12
-            }}>
-              <Crown size={24} color="#FFD700" />
-              <Text style={{
-                fontSize: 18,
-                fontWeight: 'bold',
-                color: 'white',
-                marginLeft: 12
-              }}>
-                Unlock Premium Features
-              </Text>
-            </View>
-            <Text style={{
-              fontSize: 14,
-              color: 'rgba(255,255,255,0.8)',
-              marginBottom: 16,
-              lineHeight: 20
-            }}>
-              • See exact scores and rankings{'\n'}
-              • Unlimited daily re-ranks{'\n'}
-              • Premium filters and effects{'\n'}
-              • Detailed analytics and insights
-            </Text>
-            <TouchableOpacity
-              onPress={handleUpgrade}
-              style={{
-                backgroundColor: '#FFD700',
-                borderRadius: 12,
-                paddingVertical: 12,
-                paddingHorizontal: 20,
-                alignSelf: 'flex-start'
-              }}
-            >
-              <Text style={{
-                fontSize: 16,
-                fontWeight: 'bold',
-                color: '#000'
-              }}>
-                Upgrade for $3.99/week
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
-        )}
+        {/* Premium Upgrade section removed for testing */}
 
         {/* Quick Actions */}
         <Animated.View 
@@ -677,10 +608,10 @@ export default function Dashboard() {
                     <Text style={{
                       fontSize: 16,
                       fontWeight: 'bold',
-                      color: isPremium ? getScoreColor(selfie.score) : 'rgba(255,255,255,0.5)',
+                      color: getScoreColor(selfie.score),
                       textAlign: 'center'
                     }}>
-                      {isPremium ? selfie.score : '••'}
+                      {selfie.score}
                     </Text>
                     <Text style={{
                       fontSize: 10,

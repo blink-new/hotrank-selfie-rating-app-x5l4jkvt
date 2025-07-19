@@ -26,8 +26,8 @@ const { width } = Dimensions.get('window')
 export default function Results() {
   const params = useLocalSearchParams()
   const [user, setUser] = useState(null)
-  const [isPremium, setIsPremium] = useState(false)
-  const [showBlur, setShowBlur] = useState(true)
+  const [isPremium, setIsPremium] = useState(true) // Always true for testing
+  const [showBlur, setShowBlur] = useState(false) // Always false for testing
   const [isSharing, setIsSharing] = useState(false)
 
   const score = parseInt(params.score as string) || 0
@@ -64,22 +64,9 @@ export default function Results() {
   }, [])
 
   const checkPremiumStatus = async (user: any) => {
-    if (!user) return
-    
-    try {
-      const userRecord = await blink.db.users.list({
-        where: { id: user.id },
-        limit: 1
-      })
-      
-      if (userRecord.length > 0) {
-        const isActive = userRecord[0].subscriptionStatus === 'active'
-        setIsPremium(isActive)
-        setShowBlur(!isActive)
-      }
-    } catch (error) {
-      console.error('Error checking premium status:', error)
-    }
+    // Always set as premium for testing
+    setIsPremium(true)
+    setShowBlur(false)
   }
 
   const getScoreColor = (score: number) => {
@@ -389,27 +376,10 @@ export default function Results() {
             <Text style={{
               fontSize: 64,
               fontWeight: 'bold',
-              color: getScoreColor(score),
-              filter: showBlur && !isPremium ? 'blur(8px)' : 'none'
+              color: getScoreColor(score)
             }}>
-              {isPremium ? score : '••'}
+              {score}
             </Text>
-            
-            {showBlur && !isPremium && (
-              <View style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                justifyContent: 'center',
-                alignItems: 'center',
-                backgroundColor: 'rgba(0,0,0,0.3)',
-                borderRadius: 12
-              }}>
-                <Crown size={32} color="#FFD700" />
-              </View>
-            )}
           </View>
 
           <Text style={{
@@ -419,7 +389,7 @@ export default function Results() {
             textAlign: 'center',
             marginTop: 8
           }}>
-            {isPremium ? getScoreMessage(score) : 'Unlock to see your score!'}
+            {getScoreMessage(score)}
           </Text>
           
           {type === 'live_pic' && isPremium && (
@@ -464,10 +434,9 @@ export default function Results() {
             <Text style={{
               fontSize: 24,
               fontWeight: 'bold',
-              color: '#FFD700',
-              filter: showBlur && !isPremium ? 'blur(4px)' : 'none'
+              color: '#FFD700'
             }}>
-              {isPremium ? `#${rank}` : '#••••'}
+              #{rank}
             </Text>
           </View>
           
@@ -476,7 +445,7 @@ export default function Results() {
             color: 'rgba(255,255,255,0.8)',
             textAlign: 'center'
           }}>
-            {isPremium ? getRankMessage(rank) : 'Upgrade to see your exact ranking'}
+            {getRankMessage(rank)}
           </Text>
         </Animated.View>
 
@@ -485,36 +454,7 @@ export default function Results() {
           entering={FadeInDown.duration(600).delay(400)}
           style={{ flex: 1, justifyContent: 'flex-end' }}
         >
-          {!isPremium && (
-            <TouchableOpacity
-              onPress={handleUpgrade}
-              style={{
-                backgroundColor: '#FFD700',
-                borderRadius: 16,
-                paddingVertical: 18,
-                paddingHorizontal: 24,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 16,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 8
-              }}
-            >
-              <Crown size={24} color="#000" />
-              <Text style={{
-                fontSize: 18,
-                fontWeight: 'bold',
-                color: '#000',
-                marginLeft: 8
-              }}>
-                Unlock Premium - $3.99/week
-              </Text>
-            </TouchableOpacity>
-          )}
+          {/* Premium upgrade button removed for testing */}
 
           {/* Social Share Buttons */}
           <View style={{

@@ -41,7 +41,7 @@ export default function Camera() {
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState<Filter[]>([])
   const [user, setUser] = useState(null)
-  const [isPremium, setIsPremium] = useState(false)
+  const [isPremium, setIsPremium] = useState(true) // Always true for testing
   
   const cameraRef = useRef<CameraView>(null)
   const recordingInterval = useRef<NodeJS.Timeout>()

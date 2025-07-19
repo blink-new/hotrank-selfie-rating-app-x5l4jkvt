@@ -36,7 +36,7 @@ export default function History() {
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [isPremium, setIsPremium] = useState(false)
+  const [isPremium, setIsPremium] = useState(true) // Always true for testing
 
   useEffect(() => {
     const unsubscribe = blink.auth.onAuthStateChanged((state) => {
@@ -61,7 +61,7 @@ export default function History() {
       })
       
       if (userRecord.length > 0) {
-        setIsPremium(userRecord[0].subscriptionStatus === 'active')
+        setIsPremium(true) // Always true for testing
       }
 
       // Load user's selfie history
@@ -256,15 +256,15 @@ export default function History() {
               <Text style={{
                 fontSize: 18,
                 fontWeight: 'bold',
-                color: isPremium ? getScoreColor(entry.score) : '#ccc'
+                color: getScoreColor(entry.score)
               }}>
-                {isPremium ? entry.score : '••'}/100
+                {entry.score}/100
               </Text>
               <Text style={{
                 fontSize: 12,
                 color: '#666'
               }}>
-                {isPremium ? `Rank #${entry.rankPosition}` : 'Rank #••••'}
+                Rank #{entry.rankPosition}
               </Text>
             </View>
             
@@ -442,35 +442,7 @@ export default function History() {
           }
           showsVerticalScrollIndicator={false}
         >
-          {!isPremium && (
-            <Animated.View 
-              entering={FadeInDown.duration(600).delay(100)}
-              style={{
-                backgroundColor: 'rgba(255,215,0,0.2)',
-                borderRadius: 16,
-                padding: 16,
-                marginBottom: 16,
-                borderWidth: 1,
-                borderColor: 'rgba(255,215,0,0.3)'
-              }}
-            >
-              <Text style={{
-                fontSize: 16,
-                fontWeight: 'bold',
-                color: 'white',
-                marginBottom: 8
-              }}>
-                🔒 Premium Feature
-              </Text>
-              <Text style={{
-                fontSize: 14,
-                color: 'rgba(255,255,255,0.9)',
-                lineHeight: 20
-              }}>
-                Upgrade to see exact scores and rankings for all your selfies
-              </Text>
-            </Animated.View>
-          )}
+          {/* Premium feature notice removed for testing */}
 
           {history.length > 0 ? (
             history.map((entry, index) => renderHistoryItem(entry, index))
